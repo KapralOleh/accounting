@@ -13,34 +13,13 @@ import {
     GET_ASSETS,
 } from "../graphql/asset.operations";
 import { GET_UNITS } from "../graphql/unit.operations";
+import {
+    ASSET_TYPE_LABELS,
+    ASSET_TYPES,
+    RADIO_SUBTYPES,
+} from "../constants/assetTypes";
 import type { AssetType, RadioSubtype, Unit } from "../types";
 import toast from "react-hot-toast";
-
-const ASSET_TYPES: AssetType[] = [
-    "PRINTER",
-    "LAPTOP",
-    "STARLINK",
-    "TABLET",
-    "RADIO",
-    "OTHER",
-];
-
-const RADIO_SUBTYPES: RadioSubtype[] = [
-    "DP4400",
-    "DP4800",
-    "R7",
-    "R7a",
-    "DM4600",
-];
-
-const ASSET_TYPE_LABELS: Record<AssetType, string> = {
-    PRINTER: "Принтер",
-    LAPTOP: "Ноутбук",
-    STARLINK: "Starlink",
-    TABLET: "Планшет",
-    RADIO: "Радіостанція",
-    OTHER: "Інше",
-};
 
 type GetUnitsResponse = {
     units: Unit[];

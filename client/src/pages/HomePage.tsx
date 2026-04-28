@@ -12,16 +12,8 @@ import {
     GET_ASSETS_PAGE,
 } from "../graphql/asset.operations";
 import { GET_UNITS } from "../graphql/unit.operations";
-import type { Asset, AssetType, Unit } from "../types";
-
-const ASSET_TYPE_LABELS: Record<AssetType, string> = {
-    PRINTER: "Принтер",
-    LAPTOP: "Ноутбук",
-    STARLINK: "Starlink",
-    TABLET: "Планшет",
-    RADIO: "Радіостанція",
-    OTHER: "Інше",
-};
+import { ASSET_TYPE_LABELS } from "../constants/assetTypes";
+import type { Asset, Unit } from "../types";
 
 const ASSETS_PAGE_SIZE = 5;
 

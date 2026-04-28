@@ -59,6 +59,32 @@ type AssetParent = {
     unit: string | Types.ObjectId | { _id?: unknown };
 };
 
+type TypeCountAggregate = {
+    _id: AssetType;
+    count: number;
+};
+
+type RadioSubtypeCountAggregate = {
+    _id: RadioSubtype;
+    count: number;
+};
+
+type UnitTypeCountAggregate = {
+    _id: {
+        unit: Types.ObjectId;
+        type: AssetType;
+        radioSubtype?: RadioSubtype | null;
+    };
+    count: number;
+};
+
+type DashboardUnit = {
+    _id: {
+        toString: () => string;
+    };
+    name: string;
+};
+
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 const escapeRegExp = (value: string) => {
@@ -166,6 +192,79 @@ const createToken = (userId: string) => {
         process.env.JWT_SECRET,
         { expiresIn: "7d" }
     );
+};
+
+const buildCountsByType = (items: TypeCountAggregate[]) => {
+    return new Map<AssetType, number>(
+        items.map((item) => [item._id, item.count])
+    );
+};
+
+const buildRadioSubtypeCounts = (
+    items: RadioSubtypeCountAggregate[]
+) => {
+    return items.map((item) => ({
+        subtype: item._id,
+        count: item.count,
+    }));
+};
+
+const buildUnitDashboardSummaries = (
+    units: DashboardUnit[],
+    byUnit: UnitTypeCountAggregate[]
+) => {
+    const groupedByUnit = new Map<string, UnitTypeCountAggregate[]>();
+
+    byUnit.forEach((item) => {
+        const unitId = item._id.unit.toString();
+        const currentItems = groupedByUnit.get(unitId) ?? [];
+
+        currentItems.push(item);
+        groupedByUnit.set(unitId, currentItems);
+    });
+
+    return units.map((unit) => {
+        const unitItems = groupedByUnit.get(unit._id.toString()) ?? [];
+        const unitCountsByType = new Map<AssetType, number>();
+        const radioCountsBySubtype = new Map<RadioSubtype, number>();
+
+        unitItems.forEach((item) => {
+            const { type, radioSubtype } = item._id;
+
+            unitCountsByType.set(
+                type,
+                (unitCountsByType.get(type) ?? 0) + item.count
+            );
+
+            if (type === "RADIO" && radioSubtype) {
+                radioCountsBySubtype.set(
+                    radioSubtype,
+                    (radioCountsBySubtype.get(radioSubtype) ?? 0) +
+                        item.count
+                );
+            }
+        });
+
+        const total = unitItems.reduce((sum, item) => sum + item.count, 0);
+        const starlinkCount = unitCountsByType.get("STARLINK") ?? 0;
+        const laptopCount = unitCountsByType.get("LAPTOP") ?? 0;
+        const radioCount = unitCountsByType.get("RADIO") ?? 0;
+
+        return {
+            unit,
+            total,
+            starlinkCount,
+            laptopCount,
+            radioCount,
+            otherCount: total - starlinkCount - laptopCount - radioCount,
+            radioBySubtype: Array.from(radioCountsBySubtype.entries()).map(
+                ([subtype, count]) => ({
+                    subtype,
+                    count,
+                })
+            ),
+        };
+    });
 };
 
 export const resolvers = {
@@ -299,12 +398,16 @@ export const resolvers = {
             const userId = requireAuth(context);
             const userObjectId = new Types.ObjectId(userId);
             const [units, byType, radioBySubtype, byUnit] = await Promise.all([
-                Unit.find({ user: userId }).sort({ name: 1 }),
-                Asset.aggregate([
+                Unit.find({ user: userId })
+                    .sort({ name: 1 })
+                    .select("_id name")
+                    .lean<DashboardUnit[]>()
+                    .exec(),
+                Asset.aggregate<TypeCountAggregate>([
                     { $match: { user: userObjectId } },
                     { $group: { _id: "$type", count: { $sum: 1 } } },
-                ]),
-                Asset.aggregate([
+                ]).exec(),
+                Asset.aggregate<RadioSubtypeCountAggregate>([
                     {
                         $match: {
                             user: userObjectId,
@@ -313,8 +416,8 @@ export const resolvers = {
                         },
                     },
                     { $group: { _id: "$radioSubtype", count: { $sum: 1 } } },
-                ]),
-                Asset.aggregate([
+                ]).exec(),
+                Asset.aggregate<UnitTypeCountAggregate>([
                     { $match: { user: userObjectId } },
                     {
                         $group: {
@@ -326,67 +429,10 @@ export const resolvers = {
                             count: { $sum: 1 },
                         },
                     },
-                ]),
+                ]).exec(),
             ]);
-            const countsByType = new Map<AssetType, number>(
-                byType.map((item) => [item._id as AssetType, item.count])
-            );
-            const unitSummaries = units.map((unit) => {
-                const unitId = unit._id.toString();
-                const unitItems = byUnit.filter(
-                    (item) => item._id.unit.toString() === unitId
-                );
-                const unitCountsByType = new Map<AssetType, number>();
-                const radioCountsBySubtype = new Map<RadioSubtype, number>();
-
-                unitItems.forEach((item) => {
-                    const type = item._id.type as AssetType;
-
-                    unitCountsByType.set(
-                        type,
-                        (unitCountsByType.get(type) ?? 0) + item.count
-                    );
-
-                    if (type === "RADIO" && item._id.radioSubtype) {
-                        const subtype = item._id
-                            .radioSubtype as RadioSubtype;
-
-                        radioCountsBySubtype.set(
-                            subtype,
-                            (radioCountsBySubtype.get(subtype) ?? 0) +
-                                item.count
-                        );
-                    }
-                });
-
-                const total = unitItems.reduce(
-                    (sum, item) => sum + item.count,
-                    0
-                );
-                const starlinkCount =
-                    unitCountsByType.get("STARLINK") ?? 0;
-                const laptopCount = unitCountsByType.get("LAPTOP") ?? 0;
-                const radioCount = unitCountsByType.get("RADIO") ?? 0;
-
-                return {
-                    unit,
-                    total,
-                    starlinkCount,
-                    laptopCount,
-                    radioCount,
-                    otherCount:
-                        total -
-                        starlinkCount -
-                        laptopCount -
-                        radioCount,
-                    radioBySubtype: Array.from(
-                        radioCountsBySubtype.entries()
-                    ).map(([subtype, count]) => ({
-                        subtype,
-                        count,
-                    })),
-                };
-            });
+            const countsByType = buildCountsByType(byType);
+            const unitSummaries = buildUnitDashboardSummaries(units, byUnit);
             const total = byType.reduce(
                 (sum, item) => sum + item.count,
                 0
@@ -406,10 +452,7 @@ export const resolvers = {
                     type: item._id,
                     count: item.count,
                 })),
-                radioBySubtype: radioBySubtype.map((item) => ({
-                    subtype: item._id,
-                    count: item.count,
-                })),
+                radioBySubtype: buildRadioSubtypeCounts(radioBySubtype),
                 byUnit: unitSummaries,
             };
         },
@@ -596,16 +639,18 @@ export const resolvers = {
                 throw new Error("Unit not found");
             }
 
-            return await Asset.create({
+            const assetData = {
                 name,
                 serialNumber,
                 note,
                 price,
                 type,
-                radioSubtype,
                 unit: unitId,
                 user: userId,
-            });
+                ...(radioSubtype !== undefined && { radioSubtype }),
+            };
+
+            return await Asset.create(assetData);
         },
 
         updateAsset: async (
@@ -615,6 +660,15 @@ export const resolvers = {
         ) => {
             const userId = requireAuth(context);
             const assetId = requireObjectId(args.id, "Asset");
+            const existingAsset = await Asset.findOne({
+                _id: assetId,
+                user: userId,
+            });
+
+            if (!existingAsset) {
+                throw new Error("Asset not found");
+            }
+
             const unitId =
                 args.unitId !== undefined
                     ? requireObjectId(args.unitId, "Unit")
@@ -631,6 +685,10 @@ export const resolvers = {
                     args.radioSubtype
                 );
             } else if (args.radioSubtype !== undefined) {
+                if (existingAsset.type !== "RADIO") {
+                    throw new Error("Radio subtype is only allowed for radio assets");
+                }
+
                 radioSubtype = requireValidRadioSubtype(
                     requireNonBlank(
                         args.radioSubtype ?? "",
@@ -676,11 +734,8 @@ export const resolvers = {
                 }
             }
 
-            const asset = await Asset.findOneAndUpdate(
-                {
-                    _id: assetId,
-                    user: userId,
-                },
+            const asset = await Asset.findByIdAndUpdate(
+                existingAsset._id,
                 update,
                 {
                     new: true,

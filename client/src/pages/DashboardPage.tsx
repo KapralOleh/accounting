@@ -2,24 +2,11 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client/react";
 import { Card } from "../components/Card";
 import { GET_ASSET_DASHBOARD_SUMMARY } from "../graphql/asset.operations";
+import {
+    ASSET_TYPE_PLURAL_LABELS,
+    RADIO_SUBTYPE_LABELS,
+} from "../constants/assetTypes";
 import type { AssetType, RadioSubtype } from "../types";
-
-const ASSET_TYPE_LABELS: Record<AssetType, string> = {
-    PRINTER: "Принтери",
-    LAPTOP: "Ноутбуки",
-    STARLINK: "Starlink",
-    TABLET: "Планшети",
-    RADIO: "Радіостанції",
-    OTHER: "Інше",
-};
-
-const RADIO_SUBTYPE_LABELS: Record<RadioSubtype, string> = {
-    DP4400: "DP4400",
-    DP4800: "DP4800",
-    R7: "R7",
-    R7a: "R7a",
-    DM4600: "DM4600",
-};
 
 type AssetTypeCount = {
     type: AssetType;
@@ -208,7 +195,7 @@ export function DashboardPage() {
                                     className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3"
                                 >
                                     <span className="text-sm text-gray-600">
-                                        {ASSET_TYPE_LABELS[item.type]}
+                                        {ASSET_TYPE_PLURAL_LABELS[item.type]}
                                     </span>
                                     <span className="text-sm font-semibold text-gray-900">
                                         {item.count}

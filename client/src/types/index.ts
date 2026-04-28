@@ -1,12 +1,6 @@
-export type AssetType =
-    | "PRINTER"
-    | "LAPTOP"
-    | "STARLINK"
-    | "TABLET"
-    | "RADIO"
-    | "OTHER";
+import type { AssetType, RadioSubtype } from "../constants/assetTypes";
 
-export type RadioSubtype = "DP4400" | "DP4800" | "R7" | "R7a" | "DM4600";
+export type { AssetType, RadioSubtype } from "../constants/assetTypes";
 
 export type Unit = {
     _id: string;

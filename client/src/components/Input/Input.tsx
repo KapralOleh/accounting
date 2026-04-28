@@ -1,8 +1,4 @@
-import type { InputHTMLAttributes } from "react";
-
-type InputProps = InputHTMLAttributes<HTMLInputElement> & {
-    error?: boolean;
-};
+import type { InputProps } from "./types";
 
 export function Input({ className = "", error, ...props }: InputProps) {
     return (

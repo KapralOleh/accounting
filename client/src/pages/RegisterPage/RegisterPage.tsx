@@ -1,42 +1,17 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Input } from "../components/Input";
-import { isEmpty, isValidEmail } from "../utils/validation";
-
-const REGISTER = gql`
-  mutation Register($name: String!, $email: String!, $password: String!) {
-    register(name: $name, email: $email, password: $password) {
-      token
-      user {
-        _id
-        name
-        email
-      }
-    }
-  }
-`;
-
-type RegisterResponse = {
-    register: {
-        token: string;
-        user: {
-            _id: string;
-            name: string;
-            email: string;
-        };
-    };
-};
-
-type RegisterVariables = {
-    name: string;
-    email: string;
-    password: string;
-};
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { Input } from "../../components/Input";
+import { REGISTER } from "../../graphql/auth.operations";
+import { isEmpty, isValidEmail } from "../../utils/validation";
+import type {
+    RegisterFormErrors,
+    RegisterResponse,
+    RegisterVariables,
+} from "./types";
 
 export function RegisterPage() {
     const navigate = useNavigate();
@@ -44,11 +19,7 @@ export function RegisterPage() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [errors, setErrors] = useState<{
-        name?: string;
-        email?: string;
-        password?: string;
-    }>({});
+    const [errors, setErrors] = useState<RegisterFormErrors>({});
 
     const [register, { loading, error }] = useMutation<
         RegisterResponse,
@@ -58,7 +29,7 @@ export function RegisterPage() {
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const newErrors: typeof errors = {};
+        const newErrors: RegisterFormErrors = {};
 
         if (isEmpty(name)) {
             newErrors.name = "Вкажіть імʼя";

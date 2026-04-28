@@ -1,51 +1,20 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { gql } from "@apollo/client";
 import { useMutation } from "@apollo/client/react";
 
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Input } from "../components/Input";
-import { isEmpty, isValidEmail } from "../utils/validation";
-
-const LOGIN = gql`
-  mutation Login($email: String!, $password: String!) {
-    login(email: $email, password: $password) {
-      token
-      user {
-        _id
-        name
-        email
-      }
-    }
-  }
-`;
-
-type LoginResponse = {
-    login: {
-        token: string;
-        user: {
-            _id: string;
-            name: string;
-            email: string;
-        };
-    };
-};
-
-type LoginVariables = {
-    email: string;
-    password: string;
-};
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { Input } from "../../components/Input";
+import { LOGIN } from "../../graphql/auth.operations";
+import { isEmpty, isValidEmail } from "../../utils/validation";
+import type { LoginFormErrors, LoginResponse, LoginVariables } from "./types";
 
 export function LoginPage() {
     const navigate = useNavigate();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [errors, setErrors] = useState<{
-        email?: string;
-        password?: string;
-    }>({});
+    const [errors, setErrors] = useState<LoginFormErrors>({});
 
     const [login, { loading, error }] = useMutation<
         LoginResponse,
@@ -55,7 +24,7 @@ export function LoginPage() {
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const newErrors: typeof errors = {};
+        const newErrors: LoginFormErrors = {};
 
         if (isEmpty(email)) {
             newErrors.email = "Вкажіть email";

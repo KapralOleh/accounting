@@ -1,6 +1,4 @@
-type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
-    error?: boolean;
-};
+import type { TextareaProps } from "./types";
 
 export function Textarea({ className = "", error, ...props }: TextareaProps) {
     return (

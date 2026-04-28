@@ -2,29 +2,21 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation } from "@apollo/client/react";
 
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Input } from "../components/Input";
-import { CREATE_UNIT, GET_UNITS } from "../graphql/unit.operations";
-import { isEmpty } from "../utils/validation";
-
-type CreateUnitResponse = {
-    createUnit: {
-        _id: string;
-        name: string;
-    };
-};
-
-type CreateUnitVariables = {
-    name: string;
-};
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { Input } from "../../components/Input";
+import { CREATE_UNIT, GET_UNITS } from "../../graphql/unit.operations";
+import { isEmpty } from "../../utils/validation";
+import type {
+    CreateUnitFormErrors,
+    CreateUnitResponse,
+    CreateUnitVariables,
+} from "./types";
 
 export function CreateUnitPage() {
     const navigate = useNavigate();
     const [name, setName] = useState("");
-    const [errors, setErrors] = useState<{
-        name?: string;
-    }>({});
+    const [errors, setErrors] = useState<CreateUnitFormErrors>({});
 
     const [createUnit, { loading, error }] = useMutation<
         CreateUnitResponse,
@@ -37,7 +29,7 @@ export function CreateUnitPage() {
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const newErrors: typeof errors = {};
+        const newErrors: CreateUnitFormErrors = {};
 
         if (isEmpty(name)) {
             newErrors.name = "Вкажіть назву підрозділу";

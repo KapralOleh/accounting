@@ -1,24 +1,7 @@
-import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { Navigate, Outlet } from "react-router-dom";
-
-const ME = gql`
-  query Me {
-    me {
-      _id
-      name
-      email
-    }
-  }
-`;
-
-type MeResponse = {
-    me: {
-        _id: string;
-        name: string;
-        email: string;
-    } | null;
-};
+import { ME } from "../../graphql/auth.operations";
+import type { MeResponse } from "./types";
 
 export function ProtectedRoute() {
     const token = localStorage.getItem("token");

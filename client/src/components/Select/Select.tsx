@@ -1,6 +1,4 @@
-type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
-    error?: boolean;
-};
+import type { SelectProps } from "./types";
 
 export function Select({ className = "", error, ...props }: SelectProps) {
     return (

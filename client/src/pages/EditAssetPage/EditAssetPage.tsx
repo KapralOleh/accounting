@@ -2,56 +2,35 @@ import React, { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client/react";
 
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Input } from "../components/Input";
-import { Select } from "../components/Select";
-import { Textarea } from "../components/Textarea";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { Input } from "../../components/Input";
+import { Select } from "../../components/Select";
+import { Textarea } from "../../components/Textarea";
 import {
     GET_ASSET_DASHBOARD_SUMMARY,
     GET_ASSET,
     GET_ASSETS,
     UPDATE_ASSET,
-} from "../graphql/asset.operations";
-import { GET_UNITS } from "../graphql/unit.operations";
+} from "../../graphql/asset.operations";
+import { GET_UNITS } from "../../graphql/unit.operations";
 import {
     ASSET_TYPE_LABELS,
     ASSET_TYPES,
     RADIO_SUBTYPES,
-} from "../constants/assetTypes";
-import type { Asset, AssetType, RadioSubtype, Unit } from "../types";
-import { isEmpty, isValidPrice } from "../utils/validation";
+} from "../../constants/assetTypes";
+import type { AssetType, RadioSubtype } from "../../types";
+import { isEmpty, isValidPrice } from "../../utils/validation";
+import type {
+    EditAssetFormErrors,
+    EditAssetFormProps,
+    GetAssetResponse,
+    GetAssetVariables,
+    GetUnitsResponse,
+    UpdateAssetResponse,
+    UpdateAssetVariables,
+} from "./types";
 import toast from "react-hot-toast";
-
-type GetAssetResponse = {
-    asset: Asset | null;
-};
-
-type GetAssetVariables = {
-    id: string;
-};
-
-type GetUnitsResponse = {
-    units: Unit[];
-};
-
-type UpdateAssetResponse = {
-    updateAsset: {
-        _id: string;
-        name: string;
-    };
-};
-
-type UpdateAssetVariables = {
-    id: string;
-    name?: string;
-    serialNumber?: string;
-    note?: string;
-    price?: number;
-    type?: AssetType;
-    radioSubtype?: RadioSubtype | null;
-    unitId?: string;
-};
 
 export function EditAssetPage() {
     const { id } = useParams<{ id: string }>();
@@ -103,11 +82,6 @@ export function EditAssetPage() {
     return <EditAssetForm asset={assetData.asset} units={unitsData.units} />;
 }
 
-type EditAssetFormProps = {
-    asset: Asset;
-    units: Unit[];
-};
-
 function EditAssetForm({ asset, units }: EditAssetFormProps) {
     const navigate = useNavigate();
 
@@ -120,13 +94,7 @@ function EditAssetForm({ asset, units }: EditAssetFormProps) {
         asset.radioSubtype ?? "DP4400"
     );
     const [unitId, setUnitId] = useState(asset.unit._id);
-    const [errors, setErrors] = useState<{
-        name?: string;
-        serialNumber?: string;
-        price?: string;
-        radioSubtype?: string;
-        unitId?: string;
-    }>({});
+    const [errors, setErrors] = useState<EditAssetFormErrors>({});
 
     const [updateAsset, { loading, error }] =
         useMutation<UpdateAssetResponse, UpdateAssetVariables>(UPDATE_ASSET, {
@@ -140,7 +108,7 @@ function EditAssetForm({ asset, units }: EditAssetFormProps) {
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const newErrors: typeof errors = {};
+        const newErrors: EditAssetFormErrors = {};
 
         if (isEmpty(name)) {
             newErrors.name = "Вкажіть назву";

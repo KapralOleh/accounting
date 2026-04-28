@@ -1,46 +1,31 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client/react";
-import { isEmpty, isValidPrice } from "../utils/validation";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Input } from "../components/Input";
-import { Select } from "../components/Select";
-import { Textarea } from "../components/Textarea";
+import { isEmpty, isValidPrice } from "../../utils/validation";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { Input } from "../../components/Input";
+import { Select } from "../../components/Select";
+import { Textarea } from "../../components/Textarea";
 import {
     CREATE_ASSET,
     GET_ASSET_DASHBOARD_SUMMARY,
     GET_ASSETS,
-} from "../graphql/asset.operations";
-import { GET_UNITS } from "../graphql/unit.operations";
+} from "../../graphql/asset.operations";
+import { GET_UNITS } from "../../graphql/unit.operations";
 import {
     ASSET_TYPE_LABELS,
     ASSET_TYPES,
     RADIO_SUBTYPES,
-} from "../constants/assetTypes";
-import type { AssetType, RadioSubtype, Unit } from "../types";
+} from "../../constants/assetTypes";
+import type { AssetType, RadioSubtype } from "../../types";
+import type {
+    CreateAssetFormErrors,
+    CreateAssetResponse,
+    CreateAssetVariables,
+    GetUnitsResponse,
+} from "./types";
 import toast from "react-hot-toast";
-
-type GetUnitsResponse = {
-    units: Unit[];
-};
-
-type CreateAssetResponse = {
-    createAsset: {
-        _id: string;
-        name: string;
-    };
-};
-
-type CreateAssetVariables = {
-    name: string;
-    serialNumber: string;
-    note?: string;
-    price: number;
-    type: AssetType;
-    radioSubtype?: RadioSubtype;
-    unitId: string;
-};
 
 export function CreateAssetPage() {
     const navigate = useNavigate();
@@ -53,13 +38,7 @@ export function CreateAssetPage() {
     const [radioSubtype, setRadioSubtype] =
         useState<RadioSubtype>("DP4400");
     const [unitId, setUnitId] = useState("");
-    const [errors, setErrors] = useState<{
-        name?: string;
-        serialNumber?: string;
-        price?: string;
-        radioSubtype?: string;
-        unitId?: string;
-    }>({});
+    const [errors, setErrors] = useState<CreateAssetFormErrors>({});
 
     const {
         data: unitsData,
@@ -81,7 +60,7 @@ export function CreateAssetPage() {
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const newErrors: typeof errors = {};
+        const newErrors: CreateAssetFormErrors = {};
 
         if (isEmpty(name)) {
             newErrors.name = "Вкажіть назву";

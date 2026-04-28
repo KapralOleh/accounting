@@ -2,18 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client/react";
 import toast from "react-hot-toast";
-import { ConfirmModal } from "../components/ConfirmModal";
-import { Input } from "../components/Input";
-import { Card } from "../components/Card";
-import { Select } from "../components/Select";
+import { ConfirmModal } from "../../components/ConfirmModal";
+import { Input } from "../../components/Input";
+import { Card } from "../../components/Card";
+import { Select } from "../../components/Select";
 import {
     DELETE_ASSET,
     GET_ASSET_DASHBOARD_SUMMARY,
     GET_ASSETS_PAGE,
-} from "../graphql/asset.operations";
-import { GET_UNITS } from "../graphql/unit.operations";
-import { ASSET_TYPE_LABELS } from "../constants/assetTypes";
-import type { Asset, Unit } from "../types";
+} from "../../graphql/asset.operations";
+import { GET_UNITS } from "../../graphql/unit.operations";
+import { ASSET_TYPE_LABELS } from "../../constants/assetTypes";
+import type {
+    AssetSearchParams,
+    DeleteAssetResponse,
+    DeleteAssetVariables,
+    GetAssetsResponse,
+    GetAssetsVariables,
+    GetUnitsResponse,
+} from "./types";
 
 const ASSETS_PAGE_SIZE = 5;
 
@@ -30,41 +37,11 @@ const setParam = (
     params.set(key, String(value));
 };
 
-type GetAssetsResponse = {
-    assetsPage: {
-        items: Asset[];
-        total: number;
-        totalPrice: number;
-        page: number;
-        limit: number;
-        totalPages: number;
-    };
-};
-
-type GetUnitsResponse = {
-    units: Unit[];
-};
-
-type DeleteAssetResponse = {
-    deleteAsset: boolean;
-};
-
-type DeleteAssetVariables = {
-    id: string;
-};
-
-type GetAssetsVariables = {
-    page: number;
-    limit: number;
-    unitId?: string;
-    search?: string;
-};
-
 export function HomePage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [assetIdToDelete, setAssetIdToDelete] = useState<string | null>(null);
     const updateSearchParams = useCallback(
-        (params: { unitId?: string; search?: string; page?: number }) => {
+        (params: AssetSearchParams) => {
             const nextParams = new URLSearchParams(searchParams);
             const shouldResetPage =
                 params.page === undefined &&

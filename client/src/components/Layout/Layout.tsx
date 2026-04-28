@@ -1,12 +1,8 @@
-import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button } from "../components/Button";
+import { Button } from "../Button";
+import type { LayoutProps } from "./types";
 
-type Props = {
-    children: ReactNode;
-};
-
-export function Layout({ children }: Props) {
+export function Layout({ children }: LayoutProps) {
     const navigate = useNavigate();
 
     const handleLogout = () => {

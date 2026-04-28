@@ -1,48 +1,17 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@apollo/client/react";
-import { Card } from "../components/Card";
-import { GET_ASSET_DASHBOARD_SUMMARY } from "../graphql/asset.operations";
+import { Card } from "../../components/Card";
+import { GET_ASSET_DASHBOARD_SUMMARY } from "../../graphql/asset.operations";
 import {
     ASSET_TYPE_PLURAL_LABELS,
     RADIO_SUBTYPE_LABELS,
-} from "../constants/assetTypes";
-import type { AssetType, RadioSubtype } from "../types";
-
-type AssetTypeCount = {
-    type: AssetType;
-    count: number;
-};
-
-type RadioSubtypeCount = {
-    subtype: RadioSubtype;
-    count: number;
-};
-
-type UnitDashboardSummary = {
-    unit: {
-        _id: string;
-        name: string;
-    };
-    total: number;
-    starlinkCount: number;
-    laptopCount: number;
-    radioCount: number;
-    otherCount: number;
-    radioBySubtype: RadioSubtypeCount[];
-};
-
-type DashboardSummaryResponse = {
-    assetDashboardSummary: {
-        total: number;
-        starlinkCount: number;
-        laptopCount: number;
-        radioCount: number;
-        otherCount: number;
-        byType: AssetTypeCount[];
-        radioBySubtype: RadioSubtypeCount[];
-        byUnit: UnitDashboardSummary[];
-    };
-};
+} from "../../constants/assetTypes";
+import type {
+    DashboardSummaryResponse,
+    DashboardView,
+    RadioSubtype,
+    RadioSubtypeCount,
+} from "./types";
 
 const getRadioSubtypeCount = (
     items: RadioSubtypeCount[],
@@ -52,7 +21,7 @@ const getRadioSubtypeCount = (
 };
 
 export function DashboardPage() {
-    const [view, setView] = useState<"summary" | "units">("summary");
+    const [view, setView] = useState<DashboardView>("summary");
     const { data, loading, error } =
         useQuery<DashboardSummaryResponse>(GET_ASSET_DASHBOARD_SUMMARY);
 

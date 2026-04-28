@@ -41,6 +41,7 @@ For Docker:
 PORT=5001
 MONGO_URI=mongodb://mongo:27017/accounting
 JWT_SECRET=change_this_secret
+VITE_API_URL=http://localhost:5001/graphql
 ```
 
 For local development without Docker:
@@ -49,6 +50,7 @@ For local development without Docker:
 PORT=5001
 MONGO_URI=mongodb://localhost:27017/accounting
 JWT_SECRET=change_this_secret
+VITE_API_URL=http://localhost:5001/graphql
 ```
 
 Do not commit real secrets.
@@ -181,7 +183,7 @@ Main mutations:
 
 ## Notes
 
-- The client currently points to `http://localhost:5001/graphql`.
+- The client uses `VITE_API_URL` and falls back to `http://localhost:5001/graphql`.
 - The backend reads `.env` from the project root.
 - When using Docker, `MONGO_URI` should use the Compose service name `mongo`.
 - When running locally, `MONGO_URI` should use `localhost`.

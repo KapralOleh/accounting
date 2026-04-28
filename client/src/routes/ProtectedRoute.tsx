@@ -23,7 +23,7 @@ type MeResponse = {
 export function ProtectedRoute() {
     const token = localStorage.getItem("token");
 
-    const { data, loading } = useQuery<MeResponse>(ME, {
+    const { data, loading, error } = useQuery<MeResponse>(ME, {
         skip: !token,
         fetchPolicy: "network-only",
     });
@@ -33,7 +33,15 @@ export function ProtectedRoute() {
     }
 
     if (loading) {
-        return <p>Checking auth...</p>;
+        return <p className="text-sm text-gray-500">Перевірка сесії...</p>;
+    }
+
+    if (error) {
+        return (
+            <p className="text-sm text-red-600">
+                Не вдалося перевірити сесію. Перевірте підключення до сервера.
+            </p>
+        );
     }
 
     if (!data?.me) {

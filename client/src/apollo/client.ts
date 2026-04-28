@@ -12,7 +12,7 @@ import { ErrorLink } from "@apollo/client/link/error";
 import toast from "react-hot-toast";
 
 const httpLink = new HttpLink({
-    uri: "http://localhost:5001/graphql",
+    uri: import.meta.env.VITE_API_URL || "http://localhost:5001/graphql",
 });
 
 const authLink = new SetContextLink((prevContext) => {
@@ -29,20 +29,19 @@ const authLink = new SetContextLink((prevContext) => {
 const errorLink = new ErrorLink(({ error }) => {
     if (!error) return;
 
-    // GraphQL errors
     if (CombinedGraphQLErrors.is(error)) {
-        error.errors.forEach((err) => {
-            if (err.message === "Not authorized") {
-                localStorage.removeItem("token");
-                window.location.href = "/login";
-            }
+        const isAuthError = error.errors.some(
+            (err) => err.message === "Not authorized"
+        );
 
-            toast.error(err.message);
-        });
+        if (isAuthError) {
+            localStorage.removeItem("token");
+            window.location.href = "/login";
+        }
+
         return;
     }
 
-    // Network error
     toast.error("Помилка мережі");
 });
 

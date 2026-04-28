@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { Types } from "mongoose";
 
 import { User } from "../models/User";
 import { Unit } from "../models/Unit";
@@ -40,6 +41,10 @@ type UpdateAssetArgs = {
     unitId?: string;
 };
 
+type AssetParent = {
+    unit: string | Types.ObjectId | { _id?: unknown };
+};
+
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 const requireNonBlank = (value: string, fieldName: string) => {
@@ -62,6 +67,19 @@ const requireValidEmail = (email: string) => {
     return normalizedEmail;
 };
 
+const requireObjectId = (id: string, fieldName: string) => {
+    const trimmedId = requireNonBlank(id, fieldName);
+
+    if (
+        !Types.ObjectId.isValid(trimmedId) ||
+        new Types.ObjectId(trimmedId).toString() !== trimmedId
+    ) {
+        throw new Error(`${fieldName} is invalid`);
+    }
+
+    return trimmedId;
+};
+
 const requireValidPrice = (price: number) => {
     if (!Number.isFinite(price) || price < 0) {
         throw new Error("Price must be a non-negative number");
@@ -79,7 +97,7 @@ const requireValidAssetType = (type: string) => {
 };
 
 const requireAuth = (context: Context) => {
-    if (!context.userId) {
+    if (!context.userId || !Types.ObjectId.isValid(context.userId)) {
         throw new Error("Not authorized");
     }
 
@@ -100,8 +118,26 @@ const createToken = (userId: string) => {
 
 export const resolvers = {
     Asset: {
-        unit: async (parent: { unit: string }) => {
-            return await Unit.findById(parent.unit);
+        unit: async (parent: AssetParent) => {
+            if (parent.unit instanceof Types.ObjectId) {
+                return await Unit.findById(parent.unit);
+            }
+
+            if (
+                typeof parent.unit === "object" &&
+                parent.unit !== null &&
+                "_id" in parent.unit
+            ) {
+                return parent.unit;
+            }
+
+            if (typeof parent.unit !== "string") {
+                throw new Error("Unit is invalid");
+            }
+
+            const unitId = requireObjectId(parent.unit, "Unit");
+
+            return await Unit.findById(unitId);
         },
     },
 
@@ -109,7 +145,9 @@ export const resolvers = {
         me: async (_: unknown, __: unknown, context: Context) => {
             if (!context.userId) return null;
 
-            return await User.findById(context.userId);
+            const userId = requireAuth(context);
+
+            return await User.findById(userId);
         },
 
         units: async (_: unknown, __: unknown, context: Context) => {
@@ -120,9 +158,10 @@ export const resolvers = {
 
         unit: async (_: unknown, { id }: { id: string }, context: Context) => {
             const userId = requireAuth(context);
+            const unitId = requireObjectId(id, "Unit");
 
             return await Unit.findOne({
-                _id: id,
+                _id: unitId,
                 user: userId,
             });
         },
@@ -137,9 +176,10 @@ export const resolvers = {
 
         asset: async (_: unknown, { id }: { id: string }, context: Context) => {
             const userId = requireAuth(context);
+            const assetId = requireObjectId(id, "Asset");
 
             return await Asset.findOne({
-                _id: id,
+                _id: assetId,
                 user: userId,
             }).populate("unit");
         },
@@ -150,9 +190,19 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const validUnitId = requireObjectId(unitId, "Unit");
+
+            const unit = await Unit.findOne({
+                _id: validUnitId,
+                user: userId,
+            });
+
+            if (!unit) {
+                throw new Error("Unit not found");
+            }
 
             return await Asset.find({
-                unit: unitId,
+                unit: validUnitId,
                 user: userId,
             })
                 .populate("unit")
@@ -233,11 +283,12 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const unitId = requireObjectId(id, "Unit");
             const trimmedName = requireNonBlank(name, "Unit name");
 
             const unit = await Unit.findOneAndUpdate(
                 {
-                    _id: id,
+                    _id: unitId,
                     user: userId,
                 },
                 {
@@ -261,14 +312,15 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const unitId = requireObjectId(id, "Unit");
 
             await Asset.deleteMany({
-                unit: id,
+                unit: unitId,
                 user: userId,
             });
 
             const result = await Unit.deleteOne({
-                _id: id,
+                _id: unitId,
                 user: userId,
             });
 
@@ -289,7 +341,7 @@ export const resolvers = {
             const note = args.note?.trim() ?? "";
             const price = requireValidPrice(args.price);
             const type = requireValidAssetType(args.type);
-            const unitId = requireNonBlank(args.unitId, "Unit");
+            const unitId = requireObjectId(args.unitId, "Unit");
 
             const unit = await Unit.findOne({
                 _id: unitId,
@@ -317,6 +369,11 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const assetId = requireObjectId(args.id, "Asset");
+            const unitId =
+                args.unitId !== undefined
+                    ? requireObjectId(args.unitId, "Unit")
+                    : undefined;
             const changes = {
                 ...(args.name !== undefined && {
                     name: requireNonBlank(args.name, "Asset name"),
@@ -334,14 +391,12 @@ export const resolvers = {
                 ...(args.type !== undefined && {
                     type: requireValidAssetType(args.type),
                 }),
-                ...(args.unitId !== undefined && {
-                    unit: requireNonBlank(args.unitId, "Unit"),
-                }),
+                ...(unitId !== undefined && { unit: unitId }),
             };
 
-            if (args.unitId) {
+            if (unitId) {
                 const unit = await Unit.findOne({
-                    _id: args.unitId,
+                    _id: unitId,
                     user: userId,
                 });
 
@@ -352,7 +407,7 @@ export const resolvers = {
 
             const asset = await Asset.findOneAndUpdate(
                 {
-                    _id: args.id,
+                    _id: assetId,
                     user: userId,
                 },
                 changes,
@@ -374,9 +429,10 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const assetId = requireObjectId(id, "Asset");
 
             const result = await Asset.deleteOne({
-                _id: id,
+                _id: assetId,
                 user: userId,
             });
 

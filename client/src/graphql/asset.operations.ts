@@ -17,6 +17,40 @@ export const GET_ASSETS = gql`
   }
 `;
 
+export const GET_ASSETS_PAGE = gql`
+  query GetAssetsPage(
+    $page: Int
+    $limit: Int
+    $unitId: ID
+    $search: String
+  ) {
+    assetsPage(
+      page: $page
+      limit: $limit
+      unitId: $unitId
+      search: $search
+    ) {
+      items {
+        _id
+        name
+        serialNumber
+        note
+        price
+        type
+        unit {
+          _id
+          name
+        }
+      }
+      total
+      totalPrice
+      page
+      limit
+      totalPages
+    }
+  }
+`;
+
 export const GET_ASSET = gql`
   query GetAsset($id: ID!) {
     asset(id: $id) {

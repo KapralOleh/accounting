@@ -33,6 +33,15 @@ export const typeDefs = `#graphql
     updatedAt: String
   }
 
+  type AssetPage {
+    items: [Asset!]!
+    total: Int!
+    totalPrice: Float!
+    page: Int!
+    limit: Int!
+    totalPages: Int!
+  }
+
   type AuthPayload {
     token: String!
     user: User!
@@ -45,6 +54,7 @@ export const typeDefs = `#graphql
     unit(id: ID!): Unit
 
     assets: [Asset!]!
+    assetsPage(page: Int, limit: Int, unitId: ID, search: String): AssetPage!
     asset(id: ID!): Asset
     assetsByUnit(unitId: ID!): [Asset!]!
   }

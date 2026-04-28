@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client/react";
 import toast from "react-hot-toast";
@@ -6,7 +6,7 @@ import { ConfirmModal } from "../components/ConfirmModal";
 import { Input } from "../components/Input";
 import { Card } from "../components/Card";
 import { Select } from "../components/Select";
-import { DELETE_ASSET, GET_ASSETS } from "../graphql/asset.operations";
+import { DELETE_ASSET, GET_ASSETS_PAGE } from "../graphql/asset.operations";
 import { GET_UNITS } from "../graphql/unit.operations";
 import type { Asset, AssetType, Unit } from "../types";
 
@@ -19,8 +19,17 @@ const ASSET_TYPE_LABELS: Record<AssetType, string> = {
     OTHER: "Інше",
 };
 
+const ASSETS_PAGE_SIZE = 5;
+
 type GetAssetsResponse = {
-    assets: Asset[];
+    assetsPage: {
+        items: Asset[];
+        total: number;
+        totalPrice: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    };
 };
 
 type GetUnitsResponse = {
@@ -35,43 +44,75 @@ type DeleteAssetVariables = {
     id: string;
 };
 
+type GetAssetsVariables = {
+    page: number;
+    limit: number;
+    unitId?: string;
+    search?: string;
+};
+
 export function HomePage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [assetIdToDelete, setAssetIdToDelete] = useState<string | null>(null);
-    const updateSearchParams = (params: {
-        unitId?: string;
-        search?: string;
-    }) => {
-        const nextParams = new URLSearchParams(searchParams);
+    const updateSearchParams = useCallback(
+        (params: { unitId?: string; search?: string; page?: number }) => {
+            const nextParams = new URLSearchParams(searchParams);
 
-        if (params.unitId !== undefined) {
-            if (params.unitId === "ALL") {
-                nextParams.delete("unitId");
-            } else {
-                nextParams.set("unitId", params.unitId);
+            if (params.unitId !== undefined) {
+                if (params.unitId === "ALL") {
+                    nextParams.delete("unitId");
+                } else {
+                    nextParams.set("unitId", params.unitId);
+                }
             }
-        }
 
-        if (params.search !== undefined) {
-            if (!params.search.trim()) {
-                nextParams.delete("search");
-            } else {
-                nextParams.set("search", params.search);
+            if (params.search !== undefined) {
+                if (!params.search.trim()) {
+                    nextParams.delete("search");
+                } else {
+                    nextParams.set("search", params.search);
+                }
             }
-        }
 
-        setSearchParams(nextParams);
-    };
+            if (params.page !== undefined) {
+                if (params.page <= 1) {
+                    nextParams.delete("page");
+                } else {
+                    nextParams.set("page", String(params.page));
+                }
+            } else if (
+                params.unitId !== undefined ||
+                params.search !== undefined
+            ) {
+                nextParams.delete("page");
+            }
+
+            setSearchParams(nextParams);
+        },
+        [searchParams, setSearchParams]
+    );
 
     const selectedUnitId = searchParams.get("unitId") ?? "ALL";
-
     const search = searchParams.get("search") ?? "";
+    const pageParam = Number(searchParams.get("page") ?? "1");
+    const currentPage =
+        Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+    const assetsPageVariables = useMemo<GetAssetsVariables>(
+        () => ({
+            page: currentPage,
+            limit: ASSETS_PAGE_SIZE,
+            unitId: selectedUnitId === "ALL" ? undefined : selectedUnitId,
+            search: search.trim() || undefined,
+        }),
+        [currentPage, selectedUnitId, search]
+    );
 
     const {
         data: assetsData,
         loading: assetsLoading,
         error: assetsError,
-    } = useQuery<GetAssetsResponse>(GET_ASSETS, {
+    } = useQuery<GetAssetsResponse, GetAssetsVariables>(GET_ASSETS_PAGE, {
+        variables: assetsPageVariables,
         fetchPolicy: "cache-and-network",
     });
 
@@ -85,33 +126,33 @@ export function HomePage() {
         DeleteAssetResponse,
         DeleteAssetVariables
     >(DELETE_ASSET, {
-        refetchQueries: [{ query: GET_ASSETS }],
+        refetchQueries: [
+            {
+                query: GET_ASSETS_PAGE,
+                variables: assetsPageVariables,
+            },
+        ],
         awaitRefetchQueries: true,
     });
 
-    const filteredAssets = useMemo(() => {
-        const assets = assetsData?.assets ?? [];
-        const normalizedSearch = search.trim().toLowerCase();
-
-        return assets.filter((asset) => {
-            const matchesUnit =
-                selectedUnitId === "ALL" || asset.unit._id === selectedUnitId;
-
-            const matchesSearch =
-                !normalizedSearch ||
-                asset.name.toLowerCase().includes(normalizedSearch) ||
-                asset.serialNumber.toLowerCase().includes(normalizedSearch) ||
-                (asset.note ?? "").toLowerCase().includes(normalizedSearch);
-
-            return matchesUnit && matchesSearch;
-        });
-    }, [assetsData?.assets, selectedUnitId, search]);
-
-    const totalPrice = filteredAssets.reduce(
-        (sum, asset) => sum + asset.price,
-        0
+    const assetsPage = assetsData?.assetsPage;
+    const assets = assetsPage?.items ?? [];
+    const totalAssets = assetsPage?.total ?? 0;
+    const totalPrice = assetsPage?.totalPrice ?? 0;
+    const totalPages = assetsPage?.totalPages ?? 1;
+    const firstVisibleAsset =
+        totalAssets === 0 ? 0 : (currentPage - 1) * ASSETS_PAGE_SIZE + 1;
+    const lastVisibleAsset = Math.min(
+        currentPage * ASSETS_PAGE_SIZE,
+        totalAssets
     );
     const hasActiveFilters = selectedUnitId !== "ALL" || !!search.trim();
+
+    useEffect(() => {
+        if (assetsPage && currentPage > assetsPage.totalPages) {
+            updateSearchParams({ page: assetsPage.totalPages });
+        }
+    }, [assetsPage, currentPage, updateSearchParams]);
 
     const handleDeleteAsset = async () => {
         if (!assetIdToDelete) return;
@@ -142,7 +183,7 @@ export function HomePage() {
         setSearchParams(new URLSearchParams());
     };
 
-    if (assetsLoading || unitsLoading) {
+    if ((assetsLoading && !assetsPage) || unitsLoading) {
         return <p className="text-sm text-gray-500">Завантаження...</p>;
     }
 
@@ -171,7 +212,7 @@ export function HomePage() {
                 <Card>
                     <p className="text-sm text-gray-500">Кількість майна</p>
                     <p className="mt-2 text-2xl font-semibold text-gray-900">
-                        {filteredAssets.length}
+                        {totalAssets}
                     </p>
                 </Card>
 
@@ -231,7 +272,7 @@ export function HomePage() {
                     </div>
                 </div>
 
-                {filteredAssets.length === 0 ? (
+                {assets.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
                         <p className="text-sm text-gray-500">
                             {hasActiveFilters
@@ -286,7 +327,7 @@ export function HomePage() {
                             </thead>
 
                             <tbody className="divide-y divide-gray-200">
-                                {filteredAssets.map((asset) => (
+                                {assets.map((asset) => (
                                     <tr key={asset._id} className="hover:bg-gray-50">
                                         <td className="px-4 py-3 font-medium text-gray-900">
                                             {asset.name}
@@ -325,6 +366,43 @@ export function HomePage() {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {totalAssets > 0 && (
+                    <div className="mt-4 flex flex-col gap-3 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
+                        <p>
+                            Показано {firstVisibleAsset}-{lastVisibleAsset} з{" "}
+                            {totalAssets}
+                        </p>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                disabled={currentPage <= 1 || assetsLoading}
+                                onClick={() =>
+                                    updateSearchParams({ page: currentPage - 1 })
+                                }
+                                className="rounded-lg border border-gray-300 px-3 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Назад
+                            </button>
+
+                            <span className="px-2">
+                                Сторінка {currentPage} з {totalPages}
+                            </span>
+
+                            <button
+                                type="button"
+                                disabled={currentPage >= totalPages || assetsLoading}
+                                onClick={() =>
+                                    updateSearchParams({ page: currentPage + 1 })
+                                }
+                                className="rounded-lg border border-gray-300 px-3 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Вперед
+                            </button>
+                        </div>
                     </div>
                 )}
             </Card>

@@ -167,6 +167,7 @@ Main queries:
 - `units`
 - `unit(id: ID!)`
 - `assets`
+- `assetsPage(page, limit, unitId, search)`
 - `asset(id: ID!)`
 - `assetsByUnit(unitId: ID!)`
 

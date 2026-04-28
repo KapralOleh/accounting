@@ -22,6 +22,13 @@ type LoginArgs = {
     password: string;
 };
 
+type AssetsPageArgs = {
+    page?: number;
+    limit?: number;
+    unitId?: string;
+    search?: string;
+};
+
 type CreateAssetArgs = {
     name: string;
     serialNumber: string;
@@ -46,6 +53,10 @@ type AssetParent = {
 };
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+const escapeRegExp = (value: string) => {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
 
 const requireNonBlank = (value: string, fieldName: string) => {
     const trimmedValue = value.trim();
@@ -78,6 +89,21 @@ const requireObjectId = (id: string, fieldName: string) => {
     }
 
     return trimmedId;
+};
+
+const clampPagination = (page?: number, limit?: number) => {
+    const normalizedPage =
+        Number.isInteger(page) && page !== undefined && page > 0 ? page : 1;
+    const normalizedLimit =
+        Number.isInteger(limit) && limit !== undefined && limit > 0
+            ? Math.min(limit, 100)
+            : 10;
+
+    return {
+        page: normalizedPage,
+        limit: normalizedLimit,
+        skip: (normalizedPage - 1) * normalizedLimit,
+    };
 };
 
 const requireValidPrice = (price: number) => {
@@ -172,6 +198,70 @@ export const resolvers = {
             return await Asset.find({ user: userId })
                 .populate("unit")
                 .sort({ createdAt: -1 });
+        },
+
+        assetsPage: async (
+            _: unknown,
+            args: AssetsPageArgs,
+            context: Context
+        ) => {
+            const userId = requireAuth(context);
+            const { page, limit, skip } = clampPagination(args.page, args.limit);
+            const filter: Record<string, unknown> = {
+                user: new Types.ObjectId(userId),
+            };
+            const search = args.search?.trim();
+
+            if (args.unitId) {
+                const unitId = requireObjectId(args.unitId, "Unit");
+                const unit = await Unit.findOne({
+                    _id: unitId,
+                    user: userId,
+                });
+
+                if (!unit) {
+                    throw new Error("Unit not found");
+                }
+
+                filter.unit = new Types.ObjectId(unitId);
+            }
+
+            if (search) {
+                const searchRegex = new RegExp(escapeRegExp(search), "i");
+
+                filter.$or = [
+                    { name: searchRegex },
+                    { serialNumber: searchRegex },
+                    { note: searchRegex },
+                ];
+            }
+
+            const [items, total, totals] = await Promise.all([
+                Asset.find(filter)
+                    .populate("unit")
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit),
+                Asset.countDocuments(filter),
+                Asset.aggregate([
+                    { $match: filter },
+                    {
+                        $group: {
+                            _id: null,
+                            totalPrice: { $sum: "$price" },
+                        },
+                    },
+                ]),
+            ]);
+
+            return {
+                items,
+                total,
+                totalPrice: totals[0]?.totalPrice ?? 0,
+                page,
+                limit,
+                totalPages: Math.max(Math.ceil(total / limit), 1),
+            };
         },
 
         asset: async (_: unknown, { id }: { id: string }, context: Context) => {

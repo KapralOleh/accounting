@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { User } from "../models/User";
 import { Unit } from "../models/Unit";
 import { Asset } from "../models/Asset";
+import { ASSET_TYPES, type AssetType } from "../constants/assetTypes";
 
 type Context = {
     userId?: string;
@@ -39,6 +40,44 @@ type UpdateAssetArgs = {
     unitId?: string;
 };
 
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+const requireNonBlank = (value: string, fieldName: string) => {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+        throw new Error(`${fieldName} is required`);
+    }
+
+    return trimmedValue;
+};
+
+const requireValidEmail = (email: string) => {
+    const normalizedEmail = normalizeEmail(requireNonBlank(email, "Email"));
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        throw new Error("Invalid email");
+    }
+
+    return normalizedEmail;
+};
+
+const requireValidPrice = (price: number) => {
+    if (!Number.isFinite(price) || price < 0) {
+        throw new Error("Price must be a non-negative number");
+    }
+
+    return price;
+};
+
+const requireValidAssetType = (type: string) => {
+    if (!ASSET_TYPES.includes(type as AssetType)) {
+        throw new Error("Invalid asset type");
+    }
+
+    return type as AssetType;
+};
+
 const requireAuth = (context: Context) => {
     if (!context.userId) {
         throw new Error("Not authorized");
@@ -48,9 +87,13 @@ const requireAuth = (context: Context) => {
 };
 
 const createToken = (userId: string) => {
+    if (!process.env.JWT_SECRET) {
+        throw new Error("JWT_SECRET is required");
+    }
+
     return jwt.sign(
         { userId },
-        process.env.JWT_SECRET as string,
+        process.env.JWT_SECRET,
         { expiresIn: "7d" }
     );
 };
@@ -119,17 +162,25 @@ export const resolvers = {
 
     Mutation: {
         register: async (_: unknown, args: RegisterArgs) => {
-            const existingUser = await User.findOne({ email: args.email });
+            const name = requireNonBlank(args.name, "Name");
+            const email = requireValidEmail(args.email);
+            const password = requireNonBlank(args.password, "Password");
+
+            if (password.length < 6) {
+                throw new Error("Password must be at least 6 characters");
+            }
+
+            const existingUser = await User.findOne({ email });
 
             if (existingUser) {
                 throw new Error("User with this email already exists");
             }
 
-            const hashedPassword = await bcrypt.hash(args.password, 10);
+            const hashedPassword = await bcrypt.hash(password, 10);
 
             const user = await User.create({
-                name: args.name,
-                email: args.email,
+                name,
+                email,
                 password: hashedPassword,
             });
 
@@ -139,14 +190,17 @@ export const resolvers = {
         },
 
         login: async (_: unknown, args: LoginArgs) => {
-            const user = await User.findOne({ email: args.email });
+            const email = requireValidEmail(args.email);
+            const password = requireNonBlank(args.password, "Password");
+
+            const user = await User.findOne({ email });
 
             if (!user) {
                 throw new Error("Invalid email or password");
             }
 
             const isPasswordValid = await bcrypt.compare(
-                args.password,
+                password,
                 user.password
             );
 
@@ -165,9 +219,10 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const trimmedName = requireNonBlank(name, "Unit name");
 
             return await Unit.create({
-                name,
+                name: trimmedName,
                 user: userId,
             });
         },
@@ -178,6 +233,7 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const trimmedName = requireNonBlank(name, "Unit name");
 
             const unit = await Unit.findOneAndUpdate(
                 {
@@ -185,7 +241,7 @@ export const resolvers = {
                     user: userId,
                 },
                 {
-                    name,
+                    name: trimmedName,
                 },
                 {
                     new: true,
@@ -225,9 +281,18 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const name = requireNonBlank(args.name, "Asset name");
+            const serialNumber = requireNonBlank(
+                args.serialNumber,
+                "Serial number"
+            );
+            const note = args.note?.trim() ?? "";
+            const price = requireValidPrice(args.price);
+            const type = requireValidAssetType(args.type);
+            const unitId = requireNonBlank(args.unitId, "Unit");
 
             const unit = await Unit.findOne({
-                _id: args.unitId,
+                _id: unitId,
                 user: userId,
             });
 
@@ -236,12 +301,12 @@ export const resolvers = {
             }
 
             return await Asset.create({
-                name: args.name,
-                serialNumber: args.serialNumber,
-                note: args.note ?? "",
-                price: args.price,
-                type: args.type,
-                unit: args.unitId,
+                name,
+                serialNumber,
+                note,
+                price,
+                type,
+                unit: unitId,
                 user: userId,
             });
         },
@@ -252,6 +317,27 @@ export const resolvers = {
             context: Context
         ) => {
             const userId = requireAuth(context);
+            const changes = {
+                ...(args.name !== undefined && {
+                    name: requireNonBlank(args.name, "Asset name"),
+                }),
+                ...(args.serialNumber !== undefined && {
+                    serialNumber: requireNonBlank(
+                        args.serialNumber,
+                        "Serial number"
+                    ),
+                }),
+                ...(args.note !== undefined && { note: args.note.trim() }),
+                ...(args.price !== undefined && {
+                    price: requireValidPrice(args.price),
+                }),
+                ...(args.type !== undefined && {
+                    type: requireValidAssetType(args.type),
+                }),
+                ...(args.unitId !== undefined && {
+                    unit: requireNonBlank(args.unitId, "Unit"),
+                }),
+            };
 
             if (args.unitId) {
                 const unit = await Unit.findOne({
@@ -269,16 +355,7 @@ export const resolvers = {
                     _id: args.id,
                     user: userId,
                 },
-                {
-                    ...(args.name !== undefined && { name: args.name }),
-                    ...(args.serialNumber !== undefined && {
-                        serialNumber: args.serialNumber,
-                    }),
-                    ...(args.note !== undefined && { note: args.note }),
-                    ...(args.price !== undefined && { price: args.price }),
-                    ...(args.type !== undefined && { type: args.type }),
-                    ...(args.unitId !== undefined && { unit: args.unitId }),
-                },
+                changes,
                 {
                     new: true,
                 }

@@ -15,6 +15,7 @@ import {
 import { GET_UNITS } from "../graphql/unit.operations";
 import type { Asset, AssetType, Unit } from "../types";
 import { isEmpty, isValidPrice } from "../utils/validation";
+import toast from "react-hot-toast";
 
 const ASSET_TYPES: AssetType[] = [
     "PRINTER",
@@ -177,6 +178,7 @@ function EditAssetForm({ asset, units }: EditAssetFormProps) {
             },
         });
 
+        toast.success("Майно відредаговано");
         navigate("/");
     };
 

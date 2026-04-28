@@ -8,7 +8,16 @@ import { Card } from "../components/Card";
 import { Select } from "../components/Select";
 import { DELETE_ASSET, GET_ASSETS } from "../graphql/asset.operations";
 import { GET_UNITS } from "../graphql/unit.operations";
-import type { Asset, Unit } from "../types";
+import type { Asset, AssetType, Unit } from "../types";
+
+const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+    PRINTER: "Принтер",
+    LAPTOP: "Ноутбук",
+    MONITOR: "Монітор",
+    PHONE: "Телефон",
+    TABLET: "Планшет",
+    OTHER: "Інше",
+};
 
 type GetAssetsResponse = {
     assets: Asset[];
@@ -72,7 +81,7 @@ export function HomePage() {
         error: unitsError,
     } = useQuery<GetUnitsResponse>(GET_UNITS);
 
-    const [deleteAsset] = useMutation<
+    const [deleteAsset, { loading: deleteLoading }] = useMutation<
         DeleteAssetResponse,
         DeleteAssetVariables
     >(DELETE_ASSET, {
@@ -102,18 +111,35 @@ export function HomePage() {
         (sum, asset) => sum + asset.price,
         0
     );
+    const hasActiveFilters = selectedUnitId !== "ALL" || !!search.trim();
 
     const handleDeleteAsset = async () => {
         if (!assetIdToDelete) return;
 
-        await deleteAsset({
-            variables: {
-                id: assetIdToDelete,
-            },
-        });
+        try {
+            const { data } = await deleteAsset({
+                variables: {
+                    id: assetIdToDelete,
+                },
+            });
 
-        toast.success("Майно видалено");
-        setAssetIdToDelete(null);
+            if (!data?.deleteAsset) {
+                throw new Error("Майно не знайдено або вже видалено");
+            }
+
+            toast.success("Майно видалено");
+            setAssetIdToDelete(null);
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Не вдалося видалити майно"
+            );
+        }
+    };
+
+    const clearFilters = () => {
+        setSearchParams(new URLSearchParams());
     };
 
     if (assetsLoading || unitsLoading) {
@@ -185,7 +211,7 @@ export function HomePage() {
                         <label className="mb-1 block text-sm font-medium text-gray-700">
                             Фільтр по підрозділу
                         </label>
-                       
+
                         <Select
                             value={selectedUnitId}
                             onChange={(event) => {
@@ -207,19 +233,32 @@ export function HomePage() {
 
                 {filteredAssets.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-                        <p className="text-sm text-gray-500">Майна поки немає.</p>
+                        <p className="text-sm text-gray-500">
+                            {hasActiveFilters
+                                ? "За цими фільтрами майна не знайдено."
+                                : "Майна поки немає."}
+                        </p>
 
-                        <Link
-                            to="/assets/create"
-                            className="mt-3 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
-                        >
-                            Створити перше майно
-                        </Link>
+                        {hasActiveFilters ? (
+                            <button
+                                type="button"
+                                onClick={clearFilters}
+                                className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-700"
+                            >
+                                Очистити фільтри
+                            </button>
+                        ) : (
+                            <Link
+                                to="/assets/create"
+                                className="mt-3 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
+                            >
+                                Створити перше майно
+                            </Link>
+                        )}
                     </div>
                 ) : (
-                    <div className="overflow-hidden rounded-lg border border-gray-200">
-                        
-                        <table className="w-full border-collapse bg-white text-sm">
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                        <table className="min-w-[920px] w-full border-collapse bg-white text-sm">
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-4 py-3 text-left font-medium text-gray-600">
@@ -256,7 +295,7 @@ export function HomePage() {
                                             {asset.serialNumber}
                                         </td>
                                         <td className="px-4 py-3 text-gray-600">
-                                            {asset.type}
+                                            {ASSET_TYPE_LABELS[asset.type]}
                                         </td>
                                         <td className="px-4 py-3 text-gray-600">
                                             {asset.price.toLocaleString("uk-UA")} грн
@@ -294,7 +333,7 @@ export function HomePage() {
                 title="Видалити майно?"
                 description="Цю дію неможливо скасувати. Майно буде повністю видалене з бази."
                 confirmText="Видалити"
-                loading={false}
+                loading={deleteLoading}
                 onClose={() => setAssetIdToDelete(null)}
                 onConfirm={handleDeleteAsset}
             />

@@ -8,8 +8,11 @@ dotenv.config({
 
 export const connectDB = async () => {
     try {
-        console.log("MONGO_URI:", process.env.MONGO_URI);
-        const uri = process.env.MONGO_URI as string;
+        const uri = process.env.MONGO_URI;
+
+        if (!uri) {
+            throw new Error("MONGO_URI is required");
+        }
 
         await mongoose.connect(uri);
 

@@ -30,6 +30,13 @@ export function Layout({ children }: Props) {
                         Головна
                     </Link>
 
+                    <Link
+                        to="/dashboard"
+                        className="text-sm text-gray-700 hover:text-black"
+                    >
+                        Дашборд
+                    </Link>
+
                     <Link to="/units/create">
                         <Button variant="secondary">+ Підрозділ</Button>
                     </Link>

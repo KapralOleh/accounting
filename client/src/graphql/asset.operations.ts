@@ -9,6 +9,7 @@ export const GET_ASSETS = gql`
       note
       price
       type
+      radioSubtype
       unit {
         _id
         name
@@ -37,6 +38,7 @@ export const GET_ASSETS_PAGE = gql`
         note
         price
         type
+        radioSubtype
         unit {
           _id
           name
@@ -60,9 +62,45 @@ export const GET_ASSET = gql`
       note
       price
       type
+      radioSubtype
       unit {
         _id
         name
+      }
+    }
+  }
+`;
+
+export const GET_ASSET_DASHBOARD_SUMMARY = gql`
+  query GetAssetDashboardSummary {
+    assetDashboardSummary {
+      total
+      starlinkCount
+      laptopCount
+      radioCount
+      otherCount
+      byType {
+        type
+        count
+      }
+      radioBySubtype {
+        subtype
+        count
+      }
+      byUnit {
+        unit {
+          _id
+          name
+        }
+        total
+        starlinkCount
+        laptopCount
+        radioCount
+        otherCount
+        radioBySubtype {
+          subtype
+          count
+        }
       }
     }
   }
@@ -75,6 +113,7 @@ export const CREATE_ASSET = gql`
     $note: String
     $price: Float!
     $type: AssetType!
+    $radioSubtype: RadioSubtype
     $unitId: ID!
   ) {
     createAsset(
@@ -83,6 +122,7 @@ export const CREATE_ASSET = gql`
       note: $note
       price: $price
       type: $type
+      radioSubtype: $radioSubtype
       unitId: $unitId
     ) {
       _id
@@ -99,6 +139,7 @@ export const UPDATE_ASSET = gql`
     $note: String
     $price: Float
     $type: AssetType
+    $radioSubtype: RadioSubtype
     $unitId: ID
   ) {
     updateAsset(
@@ -108,6 +149,7 @@ export const UPDATE_ASSET = gql`
       note: $note
       price: $price
       type: $type
+      radioSubtype: $radioSubtype
       unitId: $unitId
     ) {
       _id

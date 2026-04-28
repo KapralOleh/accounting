@@ -5,7 +5,12 @@ import { Types } from "mongoose";
 import { User } from "../models/User";
 import { Unit } from "../models/Unit";
 import { Asset } from "../models/Asset";
-import { ASSET_TYPES, type AssetType } from "../constants/assetTypes";
+import {
+    ASSET_TYPES,
+    RADIO_SUBTYPES,
+    type AssetType,
+    type RadioSubtype,
+} from "../constants/assetTypes";
 
 type Context = {
     userId?: string;
@@ -35,6 +40,7 @@ type CreateAssetArgs = {
     note?: string;
     price: number;
     type: string;
+    radioSubtype?: string | null;
     unitId: string;
 };
 
@@ -45,6 +51,7 @@ type UpdateAssetArgs = {
     note?: string;
     price?: number;
     type?: string;
+    radioSubtype?: string | null;
     unitId?: string;
 };
 
@@ -120,6 +127,25 @@ const requireValidAssetType = (type: string) => {
     }
 
     return type as AssetType;
+};
+
+const requireValidRadioSubtype = (radioSubtype: string) => {
+    if (!RADIO_SUBTYPES.includes(radioSubtype as RadioSubtype)) {
+        throw new Error("Invalid radio subtype");
+    }
+
+    return radioSubtype as RadioSubtype;
+};
+
+const resolveRadioSubtype = (
+    type: AssetType,
+    radioSubtype?: string | null
+) => {
+    if (type !== "RADIO") return undefined;
+
+    return requireValidRadioSubtype(
+        requireNonBlank(radioSubtype ?? "", "Radio subtype")
+    );
 };
 
 const requireAuth = (context: Context) => {
@@ -233,6 +259,7 @@ export const resolvers = {
                     { name: searchRegex },
                     { serialNumber: searchRegex },
                     { note: searchRegex },
+                    { radioSubtype: searchRegex },
                 ];
             }
 
@@ -261,6 +288,129 @@ export const resolvers = {
                 page,
                 limit,
                 totalPages: Math.max(Math.ceil(total / limit), 1),
+            };
+        },
+
+        assetDashboardSummary: async (
+            _: unknown,
+            __: unknown,
+            context: Context
+        ) => {
+            const userId = requireAuth(context);
+            const userObjectId = new Types.ObjectId(userId);
+            const [units, byType, radioBySubtype, byUnit] = await Promise.all([
+                Unit.find({ user: userId }).sort({ name: 1 }),
+                Asset.aggregate([
+                    { $match: { user: userObjectId } },
+                    { $group: { _id: "$type", count: { $sum: 1 } } },
+                ]),
+                Asset.aggregate([
+                    {
+                        $match: {
+                            user: userObjectId,
+                            type: "RADIO",
+                            radioSubtype: { $ne: null },
+                        },
+                    },
+                    { $group: { _id: "$radioSubtype", count: { $sum: 1 } } },
+                ]),
+                Asset.aggregate([
+                    { $match: { user: userObjectId } },
+                    {
+                        $group: {
+                            _id: {
+                                unit: "$unit",
+                                type: "$type",
+                                radioSubtype: "$radioSubtype",
+                            },
+                            count: { $sum: 1 },
+                        },
+                    },
+                ]),
+            ]);
+            const countsByType = new Map<AssetType, number>(
+                byType.map((item) => [item._id as AssetType, item.count])
+            );
+            const unitSummaries = units.map((unit) => {
+                const unitId = unit._id.toString();
+                const unitItems = byUnit.filter(
+                    (item) => item._id.unit.toString() === unitId
+                );
+                const unitCountsByType = new Map<AssetType, number>();
+                const radioCountsBySubtype = new Map<RadioSubtype, number>();
+
+                unitItems.forEach((item) => {
+                    const type = item._id.type as AssetType;
+
+                    unitCountsByType.set(
+                        type,
+                        (unitCountsByType.get(type) ?? 0) + item.count
+                    );
+
+                    if (type === "RADIO" && item._id.radioSubtype) {
+                        const subtype = item._id
+                            .radioSubtype as RadioSubtype;
+
+                        radioCountsBySubtype.set(
+                            subtype,
+                            (radioCountsBySubtype.get(subtype) ?? 0) +
+                                item.count
+                        );
+                    }
+                });
+
+                const total = unitItems.reduce(
+                    (sum, item) => sum + item.count,
+                    0
+                );
+                const starlinkCount =
+                    unitCountsByType.get("STARLINK") ?? 0;
+                const laptopCount = unitCountsByType.get("LAPTOP") ?? 0;
+                const radioCount = unitCountsByType.get("RADIO") ?? 0;
+
+                return {
+                    unit,
+                    total,
+                    starlinkCount,
+                    laptopCount,
+                    radioCount,
+                    otherCount:
+                        total -
+                        starlinkCount -
+                        laptopCount -
+                        radioCount,
+                    radioBySubtype: Array.from(
+                        radioCountsBySubtype.entries()
+                    ).map(([subtype, count]) => ({
+                        subtype,
+                        count,
+                    })),
+                };
+            });
+            const total = byType.reduce(
+                (sum, item) => sum + item.count,
+                0
+            );
+            const starlinkCount = countsByType.get("STARLINK") ?? 0;
+            const laptopCount = countsByType.get("LAPTOP") ?? 0;
+            const radioCount = countsByType.get("RADIO") ?? 0;
+
+            return {
+                total,
+                starlinkCount,
+                laptopCount,
+                radioCount,
+                otherCount:
+                    total - starlinkCount - laptopCount - radioCount,
+                byType: byType.map((item) => ({
+                    type: item._id,
+                    count: item.count,
+                })),
+                radioBySubtype: radioBySubtype.map((item) => ({
+                    subtype: item._id,
+                    count: item.count,
+                })),
+                byUnit: unitSummaries,
             };
         },
 
@@ -431,6 +581,10 @@ export const resolvers = {
             const note = args.note?.trim() ?? "";
             const price = requireValidPrice(args.price);
             const type = requireValidAssetType(args.type);
+            const radioSubtype = resolveRadioSubtype(
+                type,
+                args.radioSubtype
+            );
             const unitId = requireObjectId(args.unitId, "Unit");
 
             const unit = await Unit.findOne({
@@ -448,6 +602,7 @@ export const resolvers = {
                 note,
                 price,
                 type,
+                radioSubtype,
                 unit: unitId,
                 user: userId,
             });
@@ -464,6 +619,26 @@ export const resolvers = {
                 args.unitId !== undefined
                     ? requireObjectId(args.unitId, "Unit")
                     : undefined;
+            const nextType =
+                args.type !== undefined
+                    ? requireValidAssetType(args.type)
+                    : undefined;
+            let radioSubtype: RadioSubtype | undefined;
+
+            if (nextType !== undefined) {
+                radioSubtype = resolveRadioSubtype(
+                    nextType,
+                    args.radioSubtype
+                );
+            } else if (args.radioSubtype !== undefined) {
+                radioSubtype = requireValidRadioSubtype(
+                    requireNonBlank(
+                        args.radioSubtype ?? "",
+                        "Radio subtype"
+                    )
+                );
+            }
+
             const changes = {
                 ...(args.name !== undefined && {
                     name: requireNonBlank(args.name, "Asset name"),
@@ -478,11 +653,17 @@ export const resolvers = {
                 ...(args.price !== undefined && {
                     price: requireValidPrice(args.price),
                 }),
-                ...(args.type !== undefined && {
-                    type: requireValidAssetType(args.type),
-                }),
+                ...(nextType !== undefined && { type: nextType }),
+                ...(radioSubtype !== undefined && { radioSubtype }),
                 ...(unitId !== undefined && { unit: unitId }),
             };
+            const update =
+                nextType !== undefined && nextType !== "RADIO"
+                    ? {
+                          $set: changes,
+                          $unset: { radioSubtype: "" },
+                      }
+                    : changes;
 
             if (unitId) {
                 const unit = await Unit.findOne({
@@ -500,7 +681,7 @@ export const resolvers = {
                     _id: assetId,
                     user: userId,
                 },
-                changes,
+                update,
                 {
                     new: true,
                 }

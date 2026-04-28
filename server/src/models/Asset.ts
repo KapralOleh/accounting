@@ -1,6 +1,11 @@
 import mongoose, { Schema, Types } from "mongoose";
 
-import { ASSET_TYPES, type AssetType } from "../constants/assetTypes";
+import {
+    ASSET_TYPES,
+    RADIO_SUBTYPES,
+    type AssetType,
+    type RadioSubtype,
+} from "../constants/assetTypes";
 
 export type AssetDocument = {
     _id: Types.ObjectId;
@@ -9,6 +14,7 @@ export type AssetDocument = {
     note?: string;
     price: number;
     type: AssetType;
+    radioSubtype?: RadioSubtype | null;
     unit: Types.ObjectId;
     user: Types.ObjectId;
     createdAt: Date;
@@ -45,6 +51,12 @@ const assetSchema = new Schema<AssetDocument>(
             type: String,
             enum: ASSET_TYPES,
             required: true,
+        },
+
+        radioSubtype: {
+            type: String,
+            enum: RADIO_SUBTYPES,
+            required: false,
         },
 
         unit: {

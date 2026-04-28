@@ -7,26 +7,38 @@ import { Card } from "../components/Card";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
 import { Textarea } from "../components/Textarea";
-import { CREATE_ASSET, GET_ASSETS } from "../graphql/asset.operations";
+import {
+    CREATE_ASSET,
+    GET_ASSET_DASHBOARD_SUMMARY,
+    GET_ASSETS,
+} from "../graphql/asset.operations";
 import { GET_UNITS } from "../graphql/unit.operations";
-import type { AssetType, Unit } from "../types";
+import type { AssetType, RadioSubtype, Unit } from "../types";
 import toast from "react-hot-toast";
 
 const ASSET_TYPES: AssetType[] = [
     "PRINTER",
     "LAPTOP",
-    "MONITOR",
-    "PHONE",
+    "STARLINK",
     "TABLET",
+    "RADIO",
     "OTHER",
+];
+
+const RADIO_SUBTYPES: RadioSubtype[] = [
+    "DP4400",
+    "DP4800",
+    "R7",
+    "R7a",
+    "DM4600",
 ];
 
 const ASSET_TYPE_LABELS: Record<AssetType, string> = {
     PRINTER: "Принтер",
     LAPTOP: "Ноутбук",
-    MONITOR: "Монітор",
-    PHONE: "Телефон",
+    STARLINK: "Starlink",
     TABLET: "Планшет",
+    RADIO: "Радіостанція",
     OTHER: "Інше",
 };
 
@@ -47,6 +59,7 @@ type CreateAssetVariables = {
     note?: string;
     price: number;
     type: AssetType;
+    radioSubtype?: RadioSubtype;
     unitId: string;
 };
 
@@ -58,11 +71,14 @@ export function CreateAssetPage() {
     const [note, setNote] = useState("");
     const [price, setPrice] = useState("");
     const [type, setType] = useState<AssetType>("LAPTOP");
+    const [radioSubtype, setRadioSubtype] =
+        useState<RadioSubtype>("DP4400");
     const [unitId, setUnitId] = useState("");
     const [errors, setErrors] = useState<{
         name?: string;
         serialNumber?: string;
         price?: string;
+        radioSubtype?: string;
         unitId?: string;
     }>({});
 
@@ -76,7 +92,10 @@ export function CreateAssetPage() {
         CreateAssetResponse,
         CreateAssetVariables
     >(CREATE_ASSET, {
-        refetchQueries: [{ query: GET_ASSETS }],
+        refetchQueries: [
+            { query: GET_ASSETS },
+            { query: GET_ASSET_DASHBOARD_SUMMARY },
+        ],
         awaitRefetchQueries: true,
     });
 
@@ -101,6 +120,10 @@ export function CreateAssetPage() {
             newErrors.unitId = "Оберіть підрозділ";
         }
 
+        if (type === "RADIO" && !radioSubtype) {
+            newErrors.radioSubtype = "Оберіть модель радіостанції";
+        }
+
         setErrors(newErrors);
 
         if (Object.keys(newErrors).length > 0) return;
@@ -112,6 +135,8 @@ export function CreateAssetPage() {
                 note: note.trim(),
                 price: Number(price),
                 type,
+                radioSubtype:
+                    type === "RADIO" ? radioSubtype : undefined,
                 unitId,
             },
         });
@@ -212,9 +237,9 @@ export function CreateAssetPage() {
                                 </label>
                                 <Select
                                     value={type}
-                                    onChange={(event) =>
-                                        setType(event.target.value as AssetType)
-                                    }
+                                    onChange={(event) => {
+                                        setType(event.target.value as AssetType);
+                                    }}
                                 >
                                     {ASSET_TYPES.map((assetType) => (
                                         <option key={assetType} value={assetType}>
@@ -223,6 +248,35 @@ export function CreateAssetPage() {
                                     ))}
                                 </Select>
                             </div>
+
+                            {type === "RADIO" && (
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                                        Модель радіостанції
+                                    </label>
+                                    <Select
+                                        value={radioSubtype}
+                                        error={!!errors.radioSubtype}
+                                        onChange={(event) =>
+                                            setRadioSubtype(
+                                                event.target.value as RadioSubtype
+                                            )
+                                        }
+                                    >
+                                        {RADIO_SUBTYPES.map((subtype) => (
+                                            <option key={subtype} value={subtype}>
+                                                {subtype}
+                                            </option>
+                                        ))}
+                                    </Select>
+
+                                    {errors.radioSubtype && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {errors.radioSubtype}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="md:col-span-2">
                                 <label className="mb-1 block text-sm font-medium text-gray-700">

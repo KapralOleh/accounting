@@ -155,7 +155,8 @@ docker compose logs -f mongo
 - JWT-based protected routes
 - Create and list units
 - Create, edit, delete, search, and filter assets
-- Asset type enum: printer, laptop, monitor, phone, tablet, other
+- Asset type enum: printer, laptop, starlink, tablet, radio, other
+- Radio subtype enum: DP4400, DP4800, R7, R7a, DM4600
 - Asset total cost summary
 - Per-user data isolation on the backend
 

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { HomePage } from "./pages/HomePage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { CreateUnitPage } from "./pages/CreateUnitPage";
 import { CreateAssetPage } from "./pages/CreateAssetPage";
 import { EditAssetPage } from "./pages/EditAssetPage";
@@ -21,6 +22,15 @@ function App() {
           element={
             <Layout>
               <HomePage />
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/dashboard"
+          element={
+            <Layout>
+              <DashboardPage />
             </Layout>
           }
         />

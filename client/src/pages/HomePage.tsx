@@ -6,20 +6,37 @@ import { ConfirmModal } from "../components/ConfirmModal";
 import { Input } from "../components/Input";
 import { Card } from "../components/Card";
 import { Select } from "../components/Select";
-import { DELETE_ASSET, GET_ASSETS_PAGE } from "../graphql/asset.operations";
+import {
+    DELETE_ASSET,
+    GET_ASSET_DASHBOARD_SUMMARY,
+    GET_ASSETS_PAGE,
+} from "../graphql/asset.operations";
 import { GET_UNITS } from "../graphql/unit.operations";
 import type { Asset, AssetType, Unit } from "../types";
 
 const ASSET_TYPE_LABELS: Record<AssetType, string> = {
     PRINTER: "Принтер",
     LAPTOP: "Ноутбук",
-    MONITOR: "Монітор",
-    PHONE: "Телефон",
+    STARLINK: "Starlink",
     TABLET: "Планшет",
+    RADIO: "Радіостанція",
     OTHER: "Інше",
 };
 
 const ASSETS_PAGE_SIZE = 5;
+
+const setParam = (
+    params: URLSearchParams,
+    key: string,
+    value?: string | number
+) => {
+    if (value === undefined || value === "" || value === "ALL") {
+        params.delete(key);
+        return;
+    }
+
+    params.set(key, String(value));
+};
 
 type GetAssetsResponse = {
     assetsPage: {
@@ -57,33 +74,25 @@ export function HomePage() {
     const updateSearchParams = useCallback(
         (params: { unitId?: string; search?: string; page?: number }) => {
             const nextParams = new URLSearchParams(searchParams);
+            const shouldResetPage =
+                params.page === undefined &&
+                (params.unitId !== undefined || params.search !== undefined);
 
             if (params.unitId !== undefined) {
-                if (params.unitId === "ALL") {
-                    nextParams.delete("unitId");
-                } else {
-                    nextParams.set("unitId", params.unitId);
-                }
+                setParam(nextParams, "unitId", params.unitId);
             }
 
             if (params.search !== undefined) {
-                if (!params.search.trim()) {
-                    nextParams.delete("search");
-                } else {
-                    nextParams.set("search", params.search);
-                }
+                setParam(nextParams, "search", params.search.trim());
             }
 
             if (params.page !== undefined) {
-                if (params.page <= 1) {
-                    nextParams.delete("page");
-                } else {
-                    nextParams.set("page", String(params.page));
-                }
-            } else if (
-                params.unitId !== undefined ||
-                params.search !== undefined
-            ) {
+                setParam(
+                    nextParams,
+                    "page",
+                    params.page > 1 ? params.page : undefined
+                );
+            } else if (shouldResetPage) {
                 nextParams.delete("page");
             }
 
@@ -131,6 +140,7 @@ export function HomePage() {
                 query: GET_ASSETS_PAGE,
                 variables: assetsPageVariables,
             },
+            { query: GET_ASSET_DASHBOARD_SUMMARY },
         ],
         awaitRefetchQueries: true,
     });
@@ -337,6 +347,9 @@ export function HomePage() {
                                         </td>
                                         <td className="px-4 py-3 text-gray-600">
                                             {ASSET_TYPE_LABELS[asset.type]}
+                                            {asset.radioSubtype
+                                                ? ` / ${asset.radioSubtype}`
+                                                : ""}
                                         </td>
                                         <td className="px-4 py-3 text-gray-600">
                                             {asset.price.toLocaleString("uk-UA")} грн
